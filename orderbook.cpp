@@ -249,8 +249,79 @@ class Orderbook {
 
 
 
-public: //define public api's
+    public: // define public api's
+      Trades AddOrder(OrderPointer order) {
+      if (order_.contains(order->GetOrderId()) return {}; // reject if contains
+          if (
+              order->GetOrderType() == OrderType::FillAndKill &&
+                  !CanMatch(order->GetSide(), order->GetPrice()) return {};
+              OrderPointers::iterator iterator;
+              if (order->GetSide() == Side::Buy) {
+                auto &orders = bids_[order->GetPrice()];
+                orders.push_back(order);
+                iterator = std::next(orders.begin(), orders.size() - 1);
+              } else {
+                auto &orders = asks_[order->GetPrice()];
+                orders.push_back(order);
+		iterator = std::next(orders.begin(), orders.size()-1);
+              } orders_.insert({order->GetOrderId(),
+                                OrderEntry{order, iterator}});
+	      return MatchOrders();
+      }
+
+          void CancelOrder(OrderId orderId){
+      if (!orders_.contains(orderId))
+        return;
+      const auto &[order, iterator] = orders_.at(orderId);
+      orders_.erase(orderId);
+      if (order->GetSide() == Side::Sell) {
+        auto price = order->GetPrice();
+        auto &orders = asks_.at(price);
+        orders.erase(iterator);
+        if (orders.empty())
+        asks_.erase(price);        
+      } else {
+        auto price = order->GetPrice();
+        auto &orders = bids_.at(price);
+        orders.erase(iterator);
+	if(orders.empty())bids_.erase(price);
+      }
+          }
+
+
+          Trades MatchOrder(OrderModify order){
+	    if (!orders_.contains(order.GetOrderId())) return {};
+
+          const auto &[existingOrder, ignore] = orders_.at(order.GetOrderId());
+          CancelOrder(order.GetOrderId());
+          return AddOrder(order.ToOrderPointer(existingOrder->GetOrderType()));
+          }
+
+          std::size_t Size() const { return orders_.size(); }
+          OrderbookLevelInfos GetOrderInfos() const  {
+
+          LevelInfos bidInfos, askInfos;
+          bidInfos.reserve(orders_.size());
+          askInfos.reserve(orders_.size());
+          auto CreateLevelInfos = [](Price price, const OrderPointers &orders) {
+            return LevelInfo{
+              price, std::accumulate(
+                         orders.begin(), orders.end(), (Quantity)0,
+                         [](std::size_t runningSum, const OrderPointer &order) {
+                           return runningSum + order->GetRemaninigQuantity();
+                         })
+            }
+          };
+          for (const auto &[price, orders] : bids_)
+        bidInfos.push_back(CreateLevelInfos(price, orders));
+
+          for (const auto &[price, orders] : asks_) {
+	    askInfos.push_back(CreateLevelInfos(price,orders));
+          }
+	  return OrderBookLevelInfos{bidInfos, askInfos};
+}
 };
+
 
 
 int main() {
