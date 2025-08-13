@@ -14,9 +14,21 @@ let page directory entry = page table entry = 4 Bytes
 
 let Page table -> 32 pages -> size needed 32 * 4 = 2^7 B (or 7 bits)
 
-thus, our page directory size is (24-7-12) = 5 bits (contains 8 Page directory entry)
+thus, our page directory size is (24-7-12) = 5 bits (contains 8 Page directory
+entry)
 
 [5,7,12]
+
+
+for now page fault DNE , to add page fault, need to add a present bit in page
+table
+if the bit is false -> invoke page fault handler of OS
+the page fault handler is never swapped out of RAM and it'll always be present.
+since we do page walk via "hardware" the tlb entry will be added and page fault
+handler will never have the infinite tlb miss pitfall.
+
+implementation of page fault handler involves swapping the disk address in and
+out. to service the request of the process.
 
  */
 
@@ -43,8 +55,9 @@ struct page_directory_entry {
 
   struct page_table_entry {
   bool is_valid;
-    uint8_t protection_bits;  
-  uint32_t Physical_page_frame_number;
+    uint8_t protection_bits;
+    uint32_t Physical_page_frame_number;
+    uint8_t present_bit; //if page in swap space or not.
   };
 
 page_table_entry Page_Table[(1<<7)]; //can be multiple  
@@ -82,9 +95,15 @@ bool Can_access(uint8_t protection_bits) {
 
 void TLB_Insert(uint32_t virtual_page_no, uint32_t page_frame_number,
                 uint8_t protection_bits) {
-  //add entry
+  // add entry
+  //need to do manual page table walk and
+}
+
+void page_fault_handler() {
+  //use disk_address to service page replacement or just get it directly.
   
 }
+
 
 uint32_t Address_Lookup(uint32_t virtual_page_no){
  //should be 24 bit virtual address but no 24 bit int                        
@@ -138,6 +157,26 @@ uint32_t Address_Lookup(uint32_t virtual_page_no){
         std::runtime_error("SIGSEV");
       else if (Can_access(value_at_PTE_Addr.protection_bits) == false)
         std::runtime_error("PROTECTION_FAULT");
+      else if (value_at_PTE_Addr.present_bit == false) {
+        // page fault
+        page_fault_handler();
+        // switch to kernel mode this happens using ESP/RSP register
+        // which contains kernel process stack, saving user space info
+        // on it. update CPL (current privelege mode) = 0 now the IDT
+        // (interrupt descripter table) is checked to get pointer to
+        // page fault handler... since we are still operating on
+        // virtual addresses of this process, TLB is called to find
+        // the page of this func address, this will always be present
+        // (kernel pages never swapped out) so the kernel page is
+        // found and physical address is used to execute the page
+        // fault handler instructions. (fixed)
+        // iret instruction, or iretq is called -> restores by popping kernel
+        // stack, now the tlb instr (ie this line, executes normally after
+        // this).
+
+        // fun summary  :  basically page fault involves another tlb check. 
+	int ans = Address_Lookup(virtual_page_no); //retry
+        }        
       else {
         TLB_Insert(virtual_page_no,
                    value_at_PTE_Addr.Physical_page_frame_number,
