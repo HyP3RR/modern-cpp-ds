@@ -40,7 +40,7 @@ public:
 
 int main() {
 
-  jthreads obj{std::thread(print)};
+  jthreads obj{std::thread(print)}; //c++ most vexing parse avoid
   
       
    std::cout <<std::thread::hardware_concurrency() <<"\n";   
