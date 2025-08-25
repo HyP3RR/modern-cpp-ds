@@ -29,8 +29,18 @@ basic exchange side orderbook.
 
 enum class OrderType {
   GoodTillCancel,
-  FillAndKill
+  FillAndKill // filled, and rest is killed
 
+  /*
+    TODO:
+    FillOrKill -> either filled or completely cancelled
+    GoodForDay -> stays till the day end, then cancelled
+    Market -> buy or sell order immediate at best price
+    (no price and fast execution) 
+   */
+
+
+      
 };
 
 enum class Side { Buy, Sell };
