@@ -1,9 +1,28 @@
 # modern-cpp-ds
-As a C++ Enthusiast, this is the repo where I will post implementation of 
-algos or things/data structures I find interesting, preferably using modern-c++ (CPP-17, etc). 
 
+As a C++ enthusiast, this repository contains implementations of algorithms and data structures I find interesting, written using **modern C++ (C++17 and beyond)**.  
+The goal is to explore practical coding patterns, experiment with system-level behavior, and revisit classic algorithmic ideas in the context of today’s compilers and hardware.
 
-upcoming ideas:
-1. claim -> stack region for each multithread is created via mmap, unmap
-to simulate the arena environment and prevent Virtual address collision, 
-test this via strace and a program.
+---
+
+## 📌 Upcoming Ideas & Experiments
+
+1. **Stack Region via `mmap`/`munmap`**  
+   - Each thread’s stack region is created via `mmap`.  
+   - Simulate arena allocation and investigate how virtual address collisions are prevented.  
+   - Verify behavior using `strace` on a multithreaded program.
+
+2. **Template Metaprogramming Bubble Sort Revisited**  
+   - Inspired by [Todd Veldhuizen’s article](http://www.cs.rpi.edu/~musser/design/blitz/meta-art.html).  
+   - In the 1990s, TMP-based bubble sort was reported to be **~1.6× faster** than the classic implementation due to compiler limitations.  
+   - Hypothesis: with modern compilers (loop unrolling, inlining, vectorization), the TMP approach may no longer outperform loops — it might even be slower.  
+   - A **re-vamped performance comparison** is implemented in `tmp_bubblesort`.
+
+---
+
+## 🛠️ Requirements
+- C++17 (or later) compliant compiler (e.g. GCC, Clang, MSVC).
+- CMake (optional, for builds).
+- Linux recommended (for `mmap`/`munmap` experiments).
+
+---
