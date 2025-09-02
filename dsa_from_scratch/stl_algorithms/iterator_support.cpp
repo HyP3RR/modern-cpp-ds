@@ -81,16 +81,51 @@ namespace prat {
 
   
   template<typename T>
-  struct  bidirectional_iterator{
+  struct  is_bidirectional_iterator{
     static constexpr bool val = is_same<typename std::iterator_traits<T>::iterator_category,std::bidirectional_iterator_tag>::value; //compiler thinks its a value, not a type when parsing template! must use prefix typename
+
+    //also, can implement iterator trait of your own!
   };
   
   template<typename T>
- bool bidirectional_iterator_v = bidirectional_iterator<T>::val;
+ constexpr bool bidirectional_iterator_v = is_bidirectional_iterator<T>::val;
 
-  
+
+
+  template<typename T>
+  concept bidirectional_iterator = bidirectional_iterator_v<T>;
+
+
+  /*
+    must be a concept, with  boolean predicate on a type!
+    the concepts must be compile time evaluateable,
+    so defining my concept bidirectional_iterator, which checks
+    boolean value at compile time.
+
+   i can also write,
+   template<bidirectional_iterator iter>
+   ...
+   it is same as making it generic + requires Concept_X
+
+
+   types of requires-clauses
+   1. requires defined_concept_X
+   2. requires boolean_expression (eg. std::is_same()::value)
+   3. requires(T x){{x++}->std::same_as<T&>} , {expression} -> return_type_constraint
+
+std::same_as basically does std::same_as<decltype(x++),T&>!!! concept fails if false!
+
+also we can do concept G = bool_expr  && requires{}
+or we can directly requires concept G
+requires boolexpr && requires X is INVALID
+
+we can do
+requires X
+requires Y
+requires requires(T x){...} this is how you split and combine condn.
+   */
   template <typename iter>
-  requires std::bidirectional_iterator<iter> //must be a concept, with  boolean predicate on a type! mine it can't resolve at compile time!  STL goes around this , by operation based checks! compilers are dumb and can't deduce that much
+  requires bidirectional_iterator<iter> //my own concept!
   void algo(iter mybegin, iter myend) {
     //requires clause approach!
     std::cout <<"bind to bidirectional" <<"\n";
