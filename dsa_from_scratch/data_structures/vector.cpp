@@ -5,12 +5,15 @@
 
 
 /*
+emplace_back vs push_back!
 
 use trace obj to track behaviour.
 
 current:
 use operator new for low level management
 placement new for constructing obj in place.
+
+can also use allocator.allocate instead of operator new.
 
 future scope:
 custom operator new to allocate from mem pools (custom allocator)
@@ -20,7 +23,8 @@ set_new_handler to handle bad allocs from custom allocator
 things to note:
 1. placement new -> call ptr.~T(), since it is not "our memory" technically
 2. consistent new operator and delete operator calls! (can pick new[]  or new)
-3. ensure strong exception safety unless declared noexcept!
+3. ensure strong exception safety unless declared noexcept! by allocating first and free later
+(unless noexcept)
 4. ensure no resource leak of currently owned objects.
 
 fun facts:
@@ -70,6 +74,52 @@ namespace prat{
       //just get X bytes and construct each one in place. never possible with new[10] etc.
     }
 
+    vector(const vector<T> &other) : size_(other.size_), cap_(other.cap_){
+      ptr_ = reinterpret_cast<T*>(::operator new(cap_*sizeof(T)));
+      for(std::size_t i = 0 ; i < size_; i++){
+	new(ptr_+i) T(other.ptr_[i]);
+      }
+    }
+
+    vector<T>& operator=(const vector<T>& other) {
+      using std::swap;
+      if(this != &other){
+	vector<T> tmp(other);
+	swap(ptr_, tmp.ptr_);
+	swap(size_, tmp.size_);
+	swap(cap_, tmp.cap_);
+	//swap(*this, tmp); only if self-defined swap
+	//tmp destructor is called as it goes out of scope anyway (move n swap)
+	//smartest method!
+
+	//in other way, need to construct from other and free resources from original data!
+      }
+      return *this;
+    }
+
+   
+
+    vector(vector<T> &&other) noexcept : ptr_(other.ptr_),size_(std::move(other.size_)), cap_(std::move(other.cap_)){
+      other.ptr_ = nullptr;
+      other.size_ = other.cap_ = 0;
+      //calling std::move is suggested, so it calls move constructor of underlying data!
+      //for fundamnetal types like ptr, variable, it does  nothing.. so it is for showing purposes.
+    }
+
+     vector<T>& operator=(vector<T>&& other){
+      using std::swap;
+      if(this != &other){
+	//dont  free, other destructs
+	//as it goes out of scope.
+	swap(ptr_, other.ptr_);
+	swap(size_, other.size_);
+	swap(cap_, other.cap_);
+	//alternatively - free *this resources, copy pointers, and set other to null ptr etc, so destructor cant do much.
+	//this is low level direct implementation
+      }
+      return *this;
+    }
+    
     void push_back(T& val){
       
       if(size_ == cap_){
@@ -86,8 +136,39 @@ namespace prat{
       new(ptr_+size_) T(std::move(val));
       size_++;
     }
+
+    
     
 
+    T* begin(){
+      return ptr_;
+      //later return type random access iterator
+    }
+
+    T* end(){
+      return ptr_ + size_;
+    }
+
+    //pop back
+    void pop_back(){
+      ptr_[size_-1].~T();
+      size_--;
+    }
+
+    //clear! (does not free memory)
+    void clear(){
+      for(std::size_t i = 0 ; i < size_ ; i++){
+	ptr_[i].~T();
+      }
+      size_ = 0;
+    }
+    
+   // void resize(std::size_t sz){
+      //handle increasing and handle increasing and decreasing array both
+   // }
+
+
+   //similarly can also add reserve. 
     std::size_t size(){
       return size_;
     }
@@ -95,6 +176,16 @@ namespace prat{
     T& operator[](std::size_t index){
       return ptr_[index];
     }
+
+    bool operator==(const vector<T>& other){
+      if(size_ != other.size_) return false;
+      if(cap_ != other.cap_) return false;
+      for(std::size_t i = 0 ; i < size_ ; i++){
+	if(ptr_[i] != other.ptr_[i]) return false;
+      }
+      return true;
+    }
+    
     
     ~vector(){
       for(std::size_t i=0;i<size_;i++){
@@ -139,7 +230,7 @@ namespace prat{
 };
 
 
-struct x;
+
 
 int main(){
   // prat::vector<int> vec(10,2);
@@ -164,5 +255,11 @@ for(std::size_t i=0;i<v1.size();i++){
 
 }
 
+prat::vector<int> a(10,5);
+prat::vector<int> b(std::move(a));
+for(auto &v: a){
+  std::cout <<v <<" ";
+}
+std::cout <<"\n";
 
 }

@@ -9,6 +9,7 @@
 #include <stack>
 #include <limits>
 #include <stdexcept>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include <numeric>
@@ -50,7 +51,6 @@ using Quantity = std::uint32_t;
 using OrderId = std::uint64_t;
 
 struct LevelInfo {
-
   Price price_;
   Quantity quantity_;
 };
@@ -62,7 +62,7 @@ public:
   OrderBookLevelInfos(const LevelInfos &bids, const LevelInfos &asks)
       : bids_(bids), asks_(asks) {}
   const LevelInfos& GetBids() const {return bids_;}
-  const LevelInfos &GetAsks() const { return asks_; }
+  const LevelInfos& GetAsks() const { return asks_;}
 
 private:
   LevelInfos bids_;
@@ -88,8 +88,11 @@ public:
   bool IsFilled() const {return GetRemaninigQuantity() == 0;}
   void Fill(Quantity quantity) {
     if (quantity > GetRemaninigQuantity()) {
-      throw std::logic_error(std::format(
-					 "Order ({}) cannot be filled for more than remaining quantity."), GetOrderId())
+throw std::logic_error(
+    std::format("Order ({}) cannot be filled for more than remaining quantity.",
+                GetOrderId())
+);
+
     };
     remainingQuantity_ -= quantity;
   }
@@ -105,9 +108,12 @@ private:
 };
 
 
-using OrderPointer = std::shared_ptr<Order>; //might be shared b/w bid and asks
+using OrderPointer = std::shared_ptr<Order>; //prevent double delete etc
+//since we track order in orderbook, orderlookup dictionary both
 using OrderPointers =
-    std::list<OrderPointer>; // replace with vector as more cache friendly.
+    std::list<OrderPointer>;
+//vector more cache friendly, temporary iterator lifetime.
+//list less cache friednly, iterators always remain valid.
 
 class OrderModify {
 public:
@@ -119,9 +125,10 @@ public:
       Quantity GetQuantity() const { return quantity_; }
 
 
-      // converting a given order that already exists, transforing it into a new
-      // order
-      OrderPointer ToOrderPointer(OrderType type) const {
+      
+  OrderPointer ToOrderPointer(OrderType type) const {
+    //works more like a cancel-replace, specify type and return the shared ptr to modified
+    //need to delete old one tho
 	return std::make_shared<Order>(type, GetOrderId(), GetSide(), GetPrice(), GetQuantity());
       }
 
@@ -150,7 +157,6 @@ class Trade {
     private:
       TradeInfo bidTrade_;
       TradeInfo askTrade_;
-           
 };
 
 using Trades = std::vector<Trade>;
