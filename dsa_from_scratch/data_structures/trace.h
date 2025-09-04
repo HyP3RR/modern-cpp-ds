@@ -1,4 +1,4 @@
-
+#include <iostream>
 
 struct  trace{
  //compiler default func written to trace func calls.
