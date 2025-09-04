@@ -1,6 +1,6 @@
 # modern-cpp-ds
 
-As a C++ enthusiast, this repository contains implementations of algorithms and data structures I find interesting, written using **modern C++ (C++17 and beyond)**.  
+As a C++ enthusiast, this repository contains implementations of algorithms and data structures I find interesting, written using **modern C++ (C++20 and beyond)**.  
 The goal is to explore practical coding patterns, experiment with system-level behavior, and revisit classic algorithmic ideas in the context of today’s compilers and hardware.
 
 ---
@@ -21,7 +21,7 @@ The goal is to explore practical coding patterns, experiment with system-level b
 ---
 
 ## 🛠️ Requirements
-- C++17 (or later) compliant compiler (e.g. GCC, Clang, MSVC).
+- C++20 (or later) compliant compiler (e.g. GCC, Clang, MSVC).
 - CMake (optional, for builds).
 - Linux recommended (for `mmap`/`munmap` experiments).
 
