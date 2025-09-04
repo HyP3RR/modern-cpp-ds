@@ -4,6 +4,13 @@ As a C++ enthusiast, this repository contains implementations of algorithms and 
 The goal is to explore practical coding patterns, experiment with system-level behavior, and revisit classic algorithmic ideas in the context of today’s compilers and hardware.
 
 ---
+## 🚀 Features & Highlights
+
+- **Modern C++ Practices**: Utilizing C++20+ features to write basic data structures from scratch.
+- **System-Level Experiments**: Custom memory allocators, stack regions experimentations.
+- **Algorithmic Exploration**: Classic data structures and algorithms reimplemented in a modern context from scratch for clarity and efficiency.
+
+---
 
 ## 📌 Upcoming Ideas & Experiments
 
