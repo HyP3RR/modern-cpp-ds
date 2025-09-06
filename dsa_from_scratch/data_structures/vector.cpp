@@ -19,6 +19,12 @@ future scope:
 custom operator new to allocate from mem pools (custom allocator)
 set_new_handler to handle bad allocs from custom allocator
 
+cpp20, vector supports constexpr methods via transient allocation,
+ie compile time evaluateable behaviour + deallocation.
+constexpr vector does not work if the underlying has persistent heap allocation
+
+I cannot make my vector constexpr friendly, a lot of support is added in cpp23.
+
 
 things to note:
 1. placement new -> call ptr.~T(), since it is not "our memory" technically
@@ -56,7 +62,7 @@ namespace prat{
 
     vector():ptr_(nullptr),size_(0),cap_(0){} 
 
-    explicit vector(std::size_t n,const T& val):size_(n), cap_(n){
+    vector(std::size_t n,const T& val):size_(n), cap_(n){
       ptr_ = reinterpret_cast<T*>(::operator new(n*sizeof(T)));
       //completely unrelated type, use reinterpret_cast... do not access any obj
       //before actually constructing it (or UB)
@@ -65,7 +71,7 @@ namespace prat{
       }
       //avoided using '=' operator for underlying! pitfall avoided.
     }
-    explicit vector(std::size_t n):size_(n), cap_(n){
+    vector(std::size_t n):size_(n), cap_(n){
       ptr_ = reinterpret_cast<T*>(::operator new(n*sizeof(T))); 
       for(std::size_t i = 0 ; i < n; i++){
 	new(ptr_ + i) T;
@@ -187,7 +193,7 @@ namespace prat{
     }
     
     
-    ~vector(){
+   ~vector(){
       for(std::size_t i=0;i<size_;i++){
 	ptr_[i].~T();
 	//we used operator new, and allocated via placement new..
@@ -261,5 +267,7 @@ for(auto &v: a){
   std::cout <<v <<" ";
 }
 std::cout <<"\n";
+
+
 
 }

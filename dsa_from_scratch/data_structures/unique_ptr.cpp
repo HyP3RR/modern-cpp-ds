@@ -16,7 +16,7 @@ does not work!! deleting this does not disable other copy ctor!
 3. creating default deleter, and storing it's object incurs extra bytes penalty as even
 empty classes have ->0 size..
 can use EBO (empty base optimisation and just inherit from it, and call the default deleter!)
-directly via this pointer!! (no penalty size of class)
+directly via this pointer!! (no penalty size of class).. empty class  contains no non-static data mem (directly/indirectly)
 
 4. how to enable EBO with no size overhead + introduce obj for func_ptr etc!
 stateless lambdas seem to not incur any size penalty!  function pointers do!
@@ -28,8 +28,15 @@ nice observations
 
 idea -> for stateless simple do nothing, we inherit from deleter, which works
 for both lambdas and default_delete as they are struct/closure class type.
-i hope it's intuitive now why 2nd parameter is never a function pointer type,
-but a struct type! 
+that's why using default deleter as struct type helps.
+
+solve deleter while incorporating ebo, must include T* ptr inside the compressed object,
+otherwise adding an object of deleter is not considered EBO.. 
+thus, a compressed obj of deleter and pointer , template specialised on basis of
+empty lambda (ie is_empty), accordingly define it
+we utilise ebo in the compressed object, since we don't define an obj of base member
+default_delete! while it is not valid if we do T* ptr and define base obj of compressed_deleter
+in unique pointer. (completely wrong design)
 
 */
   
@@ -40,39 +47,70 @@ but a struct type!
     void operator()(T* ptr){ delete ptr;} //default deletion via EBO.
   };
   
-  template<typename T>
-  struct custom_delete{
+  template<typename T, typename deleter , bool empty = std::is_empty<deleter>::value>
+  struct compressed_obj : private deleter{ //inherit from stateless lambda or default_del
+    T* ptr_;
+    //dont declare obj of base, hence ebo valid.
+    compressed_obj() = default;
+    compressed_obj(T* obj, deleter d) : deleter(d), ptr_(obj) {} //always base first declare
+    //this is where the magic happens, no object, just initialise base class for formality
+    //which stores nothing.
+    
+    void my_delete(){this->operator()(ptr_);}
+  };
+
+  template<typename T, typename deleter>
+  struct compressed_obj<T,deleter,false>{
+    T* ptr_;
+    deleter custom_deleter_; //need it in this non-ebo case.
+
+    compressed_obj() = default;
+    compressed_obj(T* obj, deleter d) : ptr_(obj), custom_deleter_(d) {}
+    
+    void my_delete(){custom_deleter_(ptr_);}
     
   };
- 
+
+  /*
+    honestly, if youre in cpp20, [[no_unique_address]]
+    takes care of this, so no need to hack ebo.
+    template<typename T, typename deleter>
+    struct compressed_obj : private deleter{
+    T* ptr_;
+    [[no_unique_address]] deleter general_deleter;
+
+    compressed_obj() = default;
+    compressed_obj(T* obj, deleter d) : ptr_(obj), general_deleter(d) {}
+    
+    void my_delete(){general_deleter(ptr_);}
+};
+   */
+
   
   //default deleter and inheritence to enable EBO.
   template<typename T, typename deleter = default_delete<T>> 
-  class unique_ptr : private deleter{
+  class unique_ptr{
   public:
-    unique_ptr():ptr_(nullptr),deleter(){
-      
-    } 
-    unique_ptr(T* obj):ptr_(obj),deleter(){} //T deduced when declaring class, T* thus compulsory for ptr type.
-    unique_ptr(T* obj,  deleter& func) : ptr_(obj), deleter(&func){}
+    
+    unique_ptr(T* obj = nullptr):obj_{obj}{} //T deduced when declaring class, T* thus compulsory for ptr type.
+    unique_ptr(T* obj,  deleter func) : obj_{obj,func} {}
 
     unique_ptr(const unique_ptr<T,deleter>& other) = delete;
-    unique_ptr(unique_ptr<T,deleter>&& other){
+    unique_ptr(unique_ptr<T,deleter>&& other) noexcept {
       
     }
 
     unique_ptr<T,deleter>& operator= (const unique_ptr<T,deleter>& other) = delete;
-    unique_ptr<T,deleter>& operator= (unique_ptr<T,deleter> &&other){
+    unique_ptr<T,deleter>& operator= (unique_ptr<T,deleter> &&other) noexcept {
 
     }
 
 
     ~unique_ptr(){
-      this->operator()(ptr_); //invoke deletion operator via EBO! (no obj create)
-      //if deleter is type lambda, then we inherit from its closure class also! so size remains 8 (if stateless)!
+      if(obj_.ptr_)obj_.my_delete();
     }
   private:
-    T* ptr_;
+    compressed_obj<T,deleter> obj_;
   };
 };
 
@@ -85,16 +123,18 @@ auto del = [](int* ptr){delete ptr;};
 void func(int *ptr){delete ptr;}
 
 int main(){
-  std::unique_ptr<int, decltype(del)> ptr(new int,del); //calling delete on stack alloted ptr is UB
-  std::unique_ptr<int, decltype(del)> g;
+  prat::unique_ptr<int, decltype(del)> ptr(new int,del); //calling delete on stack alloted ptr is UB
+  std::unique_ptr<int, decltype(del)> g(new int, del);
   std::unique_ptr<int, void(*)(int*)> ptr2(new int,func);  //decltype(func) not a func ptr.
-  g = std::move(ptr);
-  //prat::unique_ptr<int,decltype(del)> p(new int,del);
-  //prat::unique_ptr<double> q(p);
- std::cout <<sizeof(ptr2) <<"\n";
- std::cout <<sizeof(std::unique_ptr<int,std::function<void(int*)>>) <<" " <<sizeof(prat::unique_ptr<int,decltype(del)>) <<"\n";
+
+  std::cout <<sizeof(prat::unique_ptr<int>) << " " <<sizeof(std::unique_ptr<int>) <<"\n";
+  std::cout <<sizeof(ptr) <<" " <<sizeof(g)  <<"\n";
+  std::cout <<sizeof(prat::unique_ptr<int,void(*)(int*)>) << " " <<sizeof(std::unique_ptr<int,void(*)(int*)>) <<"\n";
+  std::cout <<sizeof(prat::unique_ptr<std::function<void(int*)>>) << " " <<sizeof(std::unique_ptr<int,std::function<void(int*)>>) <<"\n";
+
   
- 
+  
+  
   
   
 }
