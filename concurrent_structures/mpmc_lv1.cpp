@@ -3,10 +3,11 @@
 #include <condition_variable>
 #include <iostream>
 /*
-  basic spsc thread safe queue,
-  for now OS level primitives and locks allowed
+  basic mpmc thread safe queue,
+  for now OS level primitives and locks allowed.
+  
 
-wrapped around indices for spsc, limit number of objects to N-1.
+wrapped around indices for mpmc, limit number of objects to N-1.
 use extra states, or allow increment of indices and take mask while indicing.
 seperates the case of empty and filled by out = in + N or out == in..
 can use full N slots now!
@@ -15,26 +16,31 @@ can use full N slots now!
 ensure max size power of 2, to enable binary arithmetic to take modulo
 overflow possible theorectically, but not practically.
 
+using condition variable,we were able to condition on N.
+if we go back to 1980's, people would implement this via N counted semaphore,
+by maintaining two semaphores, full = 0 , empty = N.. and use it accordingly
+to sleep and wake up on consuming and producing respectively.
+
 
 Drawbacks:
-1. if writing, we block consumer reading, even if theres
-no contention.
+1. if writing, we block consumer reading, even if theres no contention. -> can use two mutex, one for producing and one for consuming, notify the respective one. 
 2. this approach is blocking , ie threads can be suspended indefinitely if another thread holds the lck
 3. pace depends on scheduler! if scheduler takes away time slice for the locked one, no one makes progress.
 
 soln:
 1. lockfree -> atleast one thread always make progress, even if others are paused (no matter what)
-2. making lockfree implementation. one thread is guaranteed to make progress. do it via atomics
-
  **understand the drawbacks better, lock based vs lockfree stuff
+
+
+to enable lock free implementation, first start with spsc.
 
 */
 
 template<typename T>
-class SPSC{
+class MPMC{
 public:
-  static SPSC* get_instance(){
-    static SPSC queue{};
+  static MPMC* get_instance(){
+    static MPMC queue{};
     return &queue;
     //c++11 guarantees, thread safe initialization of static obj
     //even by multiple threads
@@ -97,8 +103,8 @@ private:
   std::condition_variable full_check_;
   static constexpr std::size_t MAXSIZE = (1<<10);
 
-  SPSC():buffer_(new T[MAXSIZE]) , in_{0} , out_{0}{} //deletes other ctor
-  ~SPSC(){
+  MPMC():buffer_(new T[MAXSIZE]) , in_{0} , out_{0}{} //deletes other ctor
+  ~MPMC(){
     delete[] buffer_;
   }
   
@@ -108,7 +114,7 @@ private:
 
 
 void add(){
-  auto mq = SPSC<int>::get_instance();
+  auto mq = MPMC<int>::get_instance();
   for(int i=0;i<100;i++){
     mq->produce(i);
     std::cout <<i <<" " <<1 <<"\n";
@@ -117,7 +123,7 @@ void add(){
 }
 
 void rem(){
-  auto mq = SPSC<int>::get_instance();
+  auto mq = MPMC<int>::get_instance();
   for(int i=0;i<100;i++){
     auto ptr = mq->consume();
     std::cout <<*ptr <<" " <<2 <<"\n";
@@ -126,7 +132,7 @@ void rem(){
 
 
 int main(){
-  auto myqueue = SPSC<int>::get_instance();//get pointer to initalised queue
+  auto myqueue = MPMC<int>::get_instance();//get pointer to initalised queue
   std::thread t(add);
   std::thread q(rem);
   t.join();q.join();
