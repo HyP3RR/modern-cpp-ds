@@ -52,11 +52,22 @@ in unique pointer. (completely wrong design)
     T* ptr_;
     //dont declare obj of base, hence ebo valid.
     compressed_obj() = default;
-    compressed_obj(T* obj, deleter d) : deleter(d), ptr_(obj) {} //always base first declare
-    //this is where the magic happens, no object, just initialise base class for formality
-    //which stores nothing.
-    
-    void my_delete(){this->operator()(ptr_);}
+    compressed_obj(T* obj) :  ptr_(obj) {}
+    compressed_obj(T* obj, deleter d): deleter(d), ptr_(obj){} //to conform to lambdas, no memory alloted, base initialised first.
+    compressed_obj(compressed_obj<T, deleter> &&other) noexcept
+        : ptr_(other.ptr_) {
+      other.ptr_ = nullptr;
+      }
+
+      compressed_obj<T, deleter> &
+      operator=(compressed_obj<T, deleter> &&other) {
+        ptr_ = other.ptr_;
+        other.ptr_ = nullptr;
+	return *this;        
+        }
+
+        void my_delete() { this->operator()(ptr_); }
+   void call_deleter(T* ptr){ this->operator()(ptr_);}        
   };
 
   template<typename T, typename deleter>
@@ -66,9 +77,20 @@ in unique pointer. (completely wrong design)
 
     compressed_obj() = default;
     compressed_obj(T* obj, deleter d) : ptr_(obj), custom_deleter_(d) {}
-    
+    compressed_obj (compressed_obj<T, deleter> && other) noexcept : ptr_(other.ptr_), custom_deleter_(other.custom_deleter_) {
+      other.ptr_ = nullptr;
+      }
+
+     compressed_obj<T, deleter> &
+      operator=(compressed_obj<T, deleter> &&other) {
+        ptr_ = other.ptr_;
+        other.ptr_ = nullptr;
+        custom_deleter_ = other.custom_deleter; // dont delete the custom
+                                                // deleter pointer of original.
+	return *this;        
+        }  
     void my_delete(){custom_deleter_(ptr_);}
-    
+    void call_deleter(T* ptr){custom_deleter_(ptr);}
   };
 
   /*
@@ -92,22 +114,47 @@ in unique pointer. (completely wrong design)
   class unique_ptr{
   public:
     
-    unique_ptr(T* obj = nullptr):obj_{obj}{} //T deduced when declaring class, T* thus compulsory for ptr type.
+    unique_ptr(T* obj = nullptr): obj_{obj}{} //T deduced when declaring class, T* thus compulsory for ptr type.
     unique_ptr(T* obj,  deleter func) : obj_{obj,func} {}
 
     unique_ptr(const unique_ptr<T,deleter>& other) = delete;
-    unique_ptr(unique_ptr<T,deleter>&& other) noexcept {
-      
-    }
+    unique_ptr(unique_ptr<T,deleter>&& other) noexcept : obj_(std::move(other.obj_)) {}
 
     unique_ptr<T,deleter>& operator= (const unique_ptr<T,deleter>& other) = delete;
-    unique_ptr<T,deleter>& operator= (unique_ptr<T,deleter> &&other) noexcept {
-
+    unique_ptr<T, deleter> &operator=(unique_ptr<T, deleter> &&other) noexcept {
+      if (this != &other) {
+	reset(); //free allocations
+        obj_ = std::move(other.obj_);
+        }
+      return *this;      
     }
 
+    T* get() const noexcept{
+      return obj_.ptr_;
+      }
+    
+    T* release() noexcept{
+      // return pointer only releasing ownership, without deleting
+      T *tmp = get();
+      obj_.ptr_ = nullptr;
+      return tmp;
+      }
+      void reset(T *p = nullptr) noexcept {
+        T *old = obj_.ptr_;
+        if(old == p) return;
+        obj_.ptr_ = p; 
+        if(old) call_deleter(old); //delete later to avoid leaking old, but need specialised overload to accept ptr
+      }
 
-    ~unique_ptr(){
-      if(obj_.ptr_)obj_.my_delete();
+    T* operator->() const {return obj_.ptr_;}
+    T& operator*() const {
+	return *obj_.ptr_;
+        }
+    
+    ~unique_ptr() noexcept {
+      if (obj_.ptr_)
+        obj_.my_delete();
+      //deallocates the ptr too.
     }
   private:
     compressed_obj<T,deleter> obj_;
@@ -120,22 +167,30 @@ struct scott{};
 
 auto del = [](int* ptr){delete ptr;};
 
-void func(int *ptr){delete ptr;}
+void func(int *ptr) { delete ptr; }
+
 
 int main(){
-  prat::unique_ptr<int, decltype(del)> ptr(new int,del); //calling delete on stack alloted ptr is UB
-  std::unique_ptr<int, decltype(del)> g(new int, del);
-  std::unique_ptr<int, void(*)(int*)> ptr2(new int,func);  //decltype(func) not a func ptr.
+ // prat::unique_ptr<int, decltype(del)> ptr(new int,del); //calling delete on stack alloted ptr is UB
+ // std::unique_ptr<int, decltype(del)> g(new int, del);
+  //std::unique_ptr<int, void(*)(int*)> ptr2(new int,func);  //decltype(func) not a func ptr.
 
-  std::cout <<sizeof(prat::unique_ptr<int>) << " " <<sizeof(std::unique_ptr<int>) <<"\n";
-  std::cout <<sizeof(ptr) <<" " <<sizeof(g)  <<"\n";
-  std::cout <<sizeof(prat::unique_ptr<int,void(*)(int*)>) << " " <<sizeof(std::unique_ptr<int,void(*)(int*)>) <<"\n";
-  std::cout <<sizeof(prat::unique_ptr<std::function<void(int*)>>) << " " <<sizeof(std::unique_ptr<int,std::function<void(int*)>>) <<"\n";
+  //std::cout <<sizeof(prat::unique_ptr<int>) << " " <<sizeof(std::unique_ptr<int>) <<"\n";
+  //std::cout <<sizeof(ptr) <<" " <<sizeof(g)  <<"\n";
+  //std::cout <<sizeof(prat::unique_ptr<int,void(*)(int*)>) << " " <<sizeof(std::unique_ptr<int,void(*)(int*)>) <<"\n";
+  //std::cout <<sizeof(prat::unique_ptr<std::function<void(int*)>>) << " " <<sizeof(std::unique_ptr<int,std::function<void(int*)>>) <<"\n";
+  using namespace std;
+  std::unique_ptr<int> a(make_unique<int>(5));
+  cout << (*a) << "\n";
+  int *ptr = a.get();
+  cout << *ptr << "\n";
+  unique_ptr<int> t = std::move(a);
+  cout << (*t) << "\n";
+  //cout <<t->
 
-  
-  
-  
-  
-  
-}
+  t.reset();
+  // cout <<t <<"\n";
+  prat::unique_ptr<int> p(new int(5));
+  std::cout <<*p <<"\n";
+  }
 
