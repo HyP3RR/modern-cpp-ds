@@ -74,7 +74,7 @@ namespace prat{
     vector(std::size_t n):size_(n), cap_(n){
       ptr_ = reinterpret_cast<T*>(::operator new(n*sizeof(T))); 
       for(std::size_t i = 0 ; i < n; i++){
-	new(ptr_ + i) T;
+	new(ptr_ + i) T();
       }
 
       //just get X bytes and construct each one in place. never possible with new[10] etc.
@@ -134,11 +134,13 @@ namespace prat{
       }
       new(ptr_+size_) T(val); 
       size_++;
-      
      }
 
     void push_back(T&& val){
-      if(size_ == cap_) re_alloc();
+      if (size_ == cap_) {
+	std::size_t new_cap = (cap_ > 0 ? 2*cap_ : 1); //handling for cap = 0
+	re_alloc(new_cap);
+        }
       new(ptr_+size_) T(std::move(val));
       size_++;
     }
@@ -219,7 +221,7 @@ namespace prat{
 	//this is how standard does it.
       }
  
-      std::swap(new_ptr_,ptr_);
+      std::swap(new_ptr_,ptr_); //we allocate first and delete later for exception safety
       cap_ = new_cap;
       for(std::size_t i = 0 ; i < size_ ; i++){
 	new_ptr_[i].~T(); //move does not free memory

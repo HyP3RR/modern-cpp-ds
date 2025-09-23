@@ -22,9 +22,7 @@ here by using acquire release semantics, we can atleast guarantee that all
 operations before it are committed to memory, when the release is synchronised
 with acquire... hence strong ordering.
 
-**aquire release, seq consistent promise ordering ONLY for atomic operations...
-global shared non-atomic variables can still cause problems. we can use fences
-for these cases.
+ **acquire release ensures the variable involved, no instr is reordered after it.. so R and W are synchronised... how does this help for fences?
 
 by default all operations on atomic, including reads are seq consistent.
 */
