@@ -141,10 +141,25 @@ namespace prat{
 	std::size_t new_cap = (cap_ > 0 ? 2*cap_ : 1); //handling for cap = 0
 	re_alloc(new_cap);
         }
-      new(ptr_+size_) T(std::move(val));
+        new (ptr_ + size_) T(std::move(
+            val)); // first construct param -> move construct in container
+        // emplace back avoids this by taking variadic template and constructs
+        // the obj directly in container
+        
       size_++;
     }
 
+    template <typename... Args>
+    void emplace_back(Args&&... args) { //universal ref
+      if (size_ == cap_) {
+	std::size_t new_cap = (cap_ > 0 ? 2*cap_ : 1); //handling for cap = 0
+	re_alloc(new_cap);
+      }
+      new (ptr_ + size_) T(std::forward<Args>(
+          args)...); // construct each param Args by forwarding
+//and preserving l-valueness or r-valueness      
+      size_++;
+      }
     
     
 
