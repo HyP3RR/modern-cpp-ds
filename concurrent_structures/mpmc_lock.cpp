@@ -1,4 +1,5 @@
 #include <iterator>
+#include <memory>
 #include <mutex>
 #include <condition_variable>
 #include <iostream>
@@ -61,23 +62,23 @@ public:
     // if(++out_ == MAXSIZE) out_ = 0; dont wrap around!
   }
 
-  std::unique_ptr<T> consume(){
+  std::shared_ptr<T> consume(){
     //wait until atleast 1 item via condition variables.
     std::unique_lock<std::mutex> uniq_lk(m_); //locked by default.
    
     empty_check_.wait(uniq_lk , [this]{return !empty(); }); //use unique lock with cv, wait to fill
-    auto my_ptr = std::make_unique<T>(buffer_[mask(in_)]);
+    auto my_ptr = std::make_shared<T>(buffer_[mask(in_)]);
     in_++;
     full_check_.notify_one();
     //to establish exception guarantee, return pointer... copy return might throw, hence data loss.
     return my_ptr;
   }
 
-  std::unique_ptr<T> try_consume(){
+  std::shared_ptr<T> try_consume(){
     //non blocking version
     std::lock_guard<std::mutex> lk(m_);
     if(empty())return nullptr;
-    auto my_ptr = std::make_unique<T>(buffer_[mask(in_)]);
+    auto my_ptr = std::make_shared<T>(buffer_[mask(in_)]);
     in_++; 
     return my_ptr;
   }
