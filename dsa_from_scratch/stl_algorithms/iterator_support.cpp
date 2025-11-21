@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iterator>
 #include <vector>
 #include <set>
 #include <unordered_set>
@@ -131,11 +132,12 @@ requires requires(T x){...} this is how you split and combine condn.
     std::cout <<"bind to bidirectional" <<"\n";
   }
   //using concepts!
-  
-  template<std::forward_iterator iter>
+
+  template <typename iter>
+  requires std::forward_iterator_tag<iter>
   void algo(iter mybegin, iter myend){
     std::cout <<"bind to forward" <<"\n";
-  }
+  } 
 }; // namespace prat, both are same!
 
 
@@ -148,5 +150,5 @@ int main() {
   std::unordered_set<int> unor;
 
   prat::algo(vec.begin(),vec.end());
-
+  
   }  
