@@ -50,7 +50,7 @@ template <typename T> class stack {
 
   public:
     void push(T obj) {
-        node *new_head = new T{obj};
+        node *new_head = new node{obj};
         new_head->next = head.load();
         while (!head.compare_exchange_weak(new_head->next, new_head))
             ;
@@ -114,6 +114,10 @@ template <typename T> class stack {
     void chain_pending_node(node *n) { chain_pending_nodes(n, n); }
 
     void try_reclaim(node *old_head) {
+        if (!old_head) {
+            --threads_in_pop;
+            return;
+        }
         if (threads_in_pop == 1) {
             node *nodes_to_delete = to_be_deleted.exchange(nullptr);
             if (--threads_in_pop == 0) {
@@ -259,14 +263,14 @@ template <typename T> class stack {
     struct node {
         std::shared_ptr<T> data;
         node *next;
-        node(const T &data) : data(data), next(nullptr) {}
+        node(const T &data) : data(std::make_shared<T>(data)), next(nullptr) {}
     };
     std::atomic<node *> head;
 
   public:
     void push(T obj) {
         node *new_head = new node{obj};
-        new_head->next = head;
+        new_head->next = head.load();
         while (!head.compare_exchange_strong(new_head->next, new_head))
             ; // new_head->next is definitely constructed! no visbility issue
     }
