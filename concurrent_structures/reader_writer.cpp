@@ -1,8 +1,6 @@
-#include <mutex>
-#include <condition_variable>
 #include <atomic>
-
-
+#include <condition_variable>
+#include <mutex>
 
 /*
   reader-writer
@@ -23,37 +21,31 @@ this is classic, the reader prioritized one
 std::mutex read_lock;
 std::mutex writer_lock;
 
-int  READ_COUNT = 0;
-
+int READ_COUNT = 0;
 
 void reader() {
-  {
-    std::lock_guard<std::mutex> lk(read_lock);
-    READ_COUNT++;
-    if(READ_COUNT == 1) writer_lock.lock();
-   }
-  
-  // reading etc
+    {
+        std::lock_guard<std::mutex> lk(read_lock);
+        READ_COUNT++;
+        if (READ_COUNT == 1)
+            writer_lock.lock();
+    }
 
-  {
-    std::lock_guard<std::mutex> lk(read_lock);
-    READ_COUNT--;
-    if(READ_COUNT == 0) writer_lock.unlock();
-   }
+    // reading etc
 
-  
+    {
+        std::lock_guard<std::mutex> lk(read_lock);
+        READ_COUNT--;
+        if (READ_COUNT == 0)
+            writer_lock.unlock();
+    }
 }
-
 
 void writer() {
 
-  std::lock_guard<std::mutex> ulk(writer_lock);
- 
-  
-  /*
-    start writing / updating
-  */
-  
-  
-  
+    std::lock_guard<std::mutex> ulk(writer_lock);
+
+    /*
+      start writing / updating
+    */
 }

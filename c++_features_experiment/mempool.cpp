@@ -1,79 +1,49 @@
-#include <cstddef>
-#include <iostream>
-#include <memory>
-#include <new>
-#include <utility>
-struct mytype {
-    int x;
-    mytype() : x{0} {}
-    mytype(int t) : x{t} {}
 
-    ~mytype() { x = 1; }
-};
 
-// no reclamation / compaction
-template <std::size_t max_bytes> class mempool {
+#include <bits/stdc++.h>
+
+using namespace std;
+template <typename T> class Pool {
+    union chunk {
+        alignas(T) std::byte buf[sizeof(T)];
+        chunk *next;
+    };
+
+    chunk *free_list = nullptr;
+    chunk *blocks = nullptr;
+
   public:
-    mempool()
-        : pool_(static_cast<std::byte *>(
-              ::operator new(max_bytes, std::align_val_t(64)))),
-          left_{max_bytes}, base_(pool_) {}
-
-    template <typename T> constexpr std::size_t get_alignment() {
-        return std::max<std::size_t>(64, alignof(T));
+    Pool(size_t n) {
+        blocks = new chunk[n]();
+        free_list = &blocks[0];
+        for (int i = 0; i < n - 1; i++) {
+            blocks[i].next = &blocks[i + 1];
+        }
+        blocks[n - 1].next = nullptr;
     }
-
-    template <typename req_type, typename... Args>
-    req_type *malloc(Args... args) {
-        void *ptr_ = pool_;
-        // align for this req_type!
-        if (!std::align(get_alignment<req_type>(), sizeof(req_type), ptr_,
-                        left_)) {
+    T *allocate() {
+        chunk *c;
+        if (free_list) {
+            c = free_list;
+            free_list = free_list->next;
+        } else {
             throw std::bad_alloc();
         }
 
-        // auto increments ptr_, updates left_, now aligned!
-        ::new (ptr_) req_type{std::forward<req_type>(args...)};
-        pool_ = static_cast<std::byte *>(ptr_) +
-                sizeof(req_type);  // align next time! (easier implementation)
-        left_ -= sizeof(req_type); // final left memory
-        return std::launder(reinterpret_cast<req_type *>(
-            ptr_)); // launder as we re-use memory (in future)
+        return new (c->buf) T(); // placement new into buf
     }
 
-    template <typename req_type> req_type *malloc() {
-        void *ptr_ = pool_;
-        if (!std::align(get_alignment<req_type>(), sizeof(req_type), ptr_,
-                        left_)) {
-            throw std::bad_alloc();
-        }
-        // auto increments ptr_, updates left_
-
-        ::new (ptr_) req_type{};
-
-        pool_ = static_cast<std::byte *>(ptr_) +
-                sizeof(req_type); // align next time! (easier implementation)
-        left_ -= sizeof(req_type);
-        return std::launder(reinterpret_cast<req_type *>(
-            ptr_)); // launder as we re-use memory (in future)
+    void deallocate(T *obj) {
+        obj->~T();                                 // destroy the object
+        chunk *c = reinterpret_cast<chunk *>(obj); // go back to chunk
+        c->next = free_list;                       // push back to freelist
+        free_list = c;
     }
 
-    template <typename del_type> void free(del_type *ptr) { ptr->~del_type(); }
-
-    ~mempool() { ::operator delete(base_); }
-
-  private:
-    std::byte *pool_;
-    std::size_t left_; // easier to deal alignment, which auto increments ptr.
-    std::byte *base_;
+    ~Pool() {
+        // assuming user gives out all the used struct
+        delete[] blocks;
+    }
 };
 
-int main() {
-    using std::cout;
-    mempool<10000> objpool;
-    cout << alignof(bool) << " " << alignof(float);
-    auto *ptr = objpool.malloc<mytype>(2);
-    cout << ptr->x << "\n";
-    objpool.free(ptr);
-    cout << ptr->x << "\n";
-}
+int main() {}
